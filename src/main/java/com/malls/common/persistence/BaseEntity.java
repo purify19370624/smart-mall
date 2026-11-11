@@ -20,7 +20,6 @@ import java.time.LocalDateTime;
  * </ul>
  */
 public abstract class BaseEntity implements Serializable {
-
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.ASSIGN_ID)
@@ -35,6 +34,11 @@ public abstract class BaseEntity implements Serializable {
     @TableLogic
     @TableField(fill = FieldFill.INSERT)
     private Integer deleted;
+
+
+    public boolean isRemoved() {
+        return deleted != null && deleted == 1;
+    }
 
     public Long getId() {
         return id;

@@ -1,6 +1,8 @@
 server:
   port: 8080
 spring:
+  application:
+    name: malls
   datasource:
     url: jdbc:mysql://192.168.150.129:3306/smart_mall?useSSL=false&serverTimezone=UTC
     username: root
@@ -9,5 +11,28 @@ spring:
 app:
   jwt:
     secret: your-secret-at-least-32-bytes
-    access-ttl-seconds: 3600
+    access-ttl-seconds: 7200
     refresh-ttl-seconds: 604800
+  order:
+    pay-timeout-minutes: 30
+    free-freight-threshold: 99.00
+    freight: 10.00
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+# Swagger / OpenAPI 文档配置
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true

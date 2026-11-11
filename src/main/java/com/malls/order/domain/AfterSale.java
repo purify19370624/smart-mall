@@ -1,8 +1,8 @@
 package com.malls.order.domain;
 
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.malls.order.domain.enums.AfterSaleStatus;
-import com.malls.order.domain.enums.AfterSaleType;
+import com.malls.order.enums.AfterSaleStatus;
+import com.malls.order.enums.AfterSaleType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

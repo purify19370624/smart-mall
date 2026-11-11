@@ -1,4 +1,4 @@
-package com.malls.order.domain.enums;
+package com.malls.order.enums;
 
 public enum AfterSaleType {
     REFUND_ONLY("仅退款"),

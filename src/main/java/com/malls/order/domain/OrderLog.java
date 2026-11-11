@@ -2,7 +2,7 @@ package com.malls.order.domain;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.malls.common.persistence.BaseEntity;
-import com.malls.order.domain.enums.OperatorType;
+import com.malls.order.enums.OperatorType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

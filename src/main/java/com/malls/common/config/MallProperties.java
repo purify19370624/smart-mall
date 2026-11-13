@@ -14,8 +14,15 @@ import java.math.BigDecimal;
 @ConfigurationProperties(prefix = "app")
 public record MallProperties(Jwt jwt, Order order, Ai ai) {
 
-    /** 令牌相关 */
-    public record Jwt(String secret, long accessTtlSeconds, long refreshTtlSeconds) {
+    /**
+     * 令牌相关。
+     *
+     * @param secret            HS256 密钥，至少 32 字节，短了 jjwt 直接抛 WeakKeyException
+     * @param accessTtlSeconds  访问令牌有效期
+     * @param refreshTtlSeconds 刷新令牌有效期
+     * @param issuer            签发者，解析时 requireIssuer 校验，防"别的系统用同密钥签的令牌混进来"
+     */
+    public record Jwt(String secret, long accessTtlSeconds, long refreshTtlSeconds, String issuer) {
     }
 
     /** 交易相关 */

@@ -26,6 +26,9 @@ public @interface RateLimit {
     /** 限流维度前缀，默认用"类名.方法名" */
     String key() default "";
 
+    boolean byUser() default true;
+
+    int seconds() default 60;
     /** 窗口内允许的最大请求数 */
     int limit() default 20;
 

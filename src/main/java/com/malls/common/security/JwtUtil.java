@@ -1,127 +1,115 @@
 package com.malls.common.security;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import com.malls.common.api.ResultCode;
 import com.malls.common.config.MallProperties;
-import com.malls.common.exception.BizException;
+import com.malls.user.domain.Role;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
+import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.Date;
+import java.util.Optional;
 
 /**
- * 零依赖 JWT 实现（HS256）。
+ * JWT 签发与校验（HS256，jjwt 0.12）。
  *
- * <p>为什么不用 jjwt：JWT 本质就是"Base64 头.载荷.签名"，自己写 80 行能看清每个字节，
- * 比引入一个库再加一堆配置更适合教学；生产环境换 jjwt / nimbus 也是同样的三段结构。
+ * <p>为什么用 JWT 而不是 Session：服务端不存会话，天然适配"单体 → 微服务"的演进，
+ * Day08 拆成六个服务后，任何一个服务拿同一把密钥都能验签。
  *
  * <p>安全要点（答辩会问）：
  * <ul>
- *   <li>载荷是 Base64 而非加密，<b>不能放密码等敏感信息</b></li>
- *   <li>签名校验用 {@link MessageDigest#isEqual} 做定长比较，防时序攻击</li>
- *   <li>必须校验 {@code exp}，否则令牌永不过期</li>
+ *   <li>载荷是 Base64 而非加密，<b>绝不能放密码、手机号、余额</b>，只放 uid/role/版本号</li>
+ *   <li>密钥不足 32 字节时 jjwt 抛 {@code WeakKeyException}，启动即失败，不会带到线上</li>
+ *   <li>必须校验 {@code exp} 与 {@code iss}，前者防永不过期，后者防"别的系统用同密钥签的令牌"混入</li>
  * </ul>
+ *
+ * <p>两种令牌共用一把密钥、靠 {@code typ} 区分：刷新令牌不能拿去访问业务接口。
  */
+@Slf4j
 @Component
 public class JwtUtil {
 
-    private static final String HMAC_SHA256 = "HmacSHA256";
+    public static final String CLAIM_USERNAME = "username";
+    public static final String CLAIM_ROLE = "role";
+    /** tokenVersion：登出 / 改密时自增，旧令牌立即失效 */
+    public static final String CLAIM_TOKEN_VERSION = "tv";
+    public static final String CLAIM_TYPE = "typ";
 
-    private static final String HEADER_B64 = Base64.getUrlEncoder().withoutPadding()
-            .encodeToString("{\"alg\":\"HS256\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
+    public static final String TYPE_ACCESS = "access";
+    public static final String TYPE_REFRESH = "refresh";
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final byte[] secretKey;
-    private final long accessTtlSeconds;
+    private final MallProperties.Jwt properties;
+    private final SecretKey key;
 
     public JwtUtil(MallProperties properties) {
-        this.secretKey = properties.jwt().secret().getBytes(StandardCharsets.UTF_8);
-        this.accessTtlSeconds = properties.jwt().accessTtlSeconds();
+        this.properties = properties.jwt();
+        // HS256 要求密钥至少 256 位（32 字节），不足会在启动时直接失败
+        this.key = Keys.hmacShaKeyFor(this.properties.secret().getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** 访问令牌：带进 Authorization 头，2 小时有效 */
+    public String createAccessToken(
+            Long userId, String username, Role role, int tokenVersion) {
+        return createToken(userId, username, role, tokenVersion,
+                TYPE_ACCESS, properties.accessTtlSeconds());
+    }
+
+    /** 刷新令牌：只用来换新令牌，7 天有效 */
+    public String createRefreshToken(Long userId, String username, Role role, int tokenVersion) {
+        return createToken(userId, username, role, tokenVersion,
+                TYPE_REFRESH, properties.refreshTtlSeconds());
+    }
+
+    private String createToken(Long userId, String username, Role role, int tokenVersion,
+                               String type, long ttlSeconds) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .issuer(properties.issuer())
+                .subject(String.valueOf(userId))          // 载荷只放非敏感标识
+                .claim(CLAIM_USERNAME, username)
+                .claim(CLAIM_ROLE, role.name())
+                .claim(CLAIM_TOKEN_VERSION, tokenVersion)
+                .claim(CLAIM_TYPE, type)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(ttlSeconds)))
+                .signWith(key, Jwts.SIG.HS256)
+                .compact();
     }
 
     /**
-     * 签发访问令牌。
+     * 解析令牌。签名不对、格式不对、过期、issuer 不符都返回空。
      *
-     * @param userId   用户 ID
-     * @param username 用户名
-     * @param role     角色（USER / ADMIN）
+     * <p>返回 {@code Optional} 而不是抛异常：过滤器里"令牌非法"和"没带令牌"
+     * 应该走同一条静默放行分支，由 {@code @RequireLogin} 决定是否拦。
      */
-    public String createAccessToken(Long userId, String username, String role) {
-        long now = Instant.now().getEpochSecond();
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("sub", String.valueOf(userId));
-        payload.put("username", username);
-        payload.put("role", role);
-        payload.put("iat", now);
-        payload.put("exp", now + accessTtlSeconds);
-
-        String body;
-        try {
-            body = Base64.getUrlEncoder().withoutPadding()
-                    .encodeToString(objectMapper.writeValueAsBytes(payload));
-        } catch (Exception e) {
-            throw new IllegalStateException("JWT 载荷序列化失败", e);
-        }
-        String signingInput = HEADER_B64 + "." + body;
-        return signingInput + "." + sign(signingInput);
-    }
-
-    /**
-     * 校验并解析令牌。签名不对、格式不对、已过期都抛 {@link BizException}。
-     */
-    public LoginUser parse(String token) {
+    public Optional<Claims> parse(String token) {
         if (token == null || token.isBlank()) {
-            throw new BizException(ResultCode.UNAUTHORIZED);
+            return Optional.empty();
         }
-        String[] parts = token.split("\\.");
-        if (parts.length != 3) {
-            throw new BizException(ResultCode.TOKEN_INVALID);
-        }
-
-        String signingInput = parts[0] + "." + parts[1];
-        byte[] expected = sign(signingInput).getBytes(StandardCharsets.UTF_8);
-        byte[] actual = parts[2].getBytes(StandardCharsets.UTF_8);
-        if (!MessageDigest.isEqual(expected, actual)) {
-            throw new BizException(ResultCode.TOKEN_INVALID);
-        }
-
-        Map<String, Object> payload;
         try {
-            payload = objectMapper.readValue(Base64.getUrlDecoder().decode(parts[1]),
-                    new TypeReference<Map<String, Object>>() {
-                    });
-        } catch (Exception e) {
-            throw new BizException(ResultCode.TOKEN_INVALID);
+            return Optional.of(Jwts.parser()
+                    .verifyWith(key)
+                    .requireIssuer(properties.issuer())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload());
+        } catch (JwtException | IllegalArgumentException e) {
+            log.debug("令牌解析失败: {}", e.getMessage());
+            return Optional.empty();
         }
-
-        Object expValue = payload.get("exp");
-        long exp = expValue instanceof Number number ? number.longValue() : 0L;
-        if (Instant.now().getEpochSecond() > exp) {
-            throw new BizException(ResultCode.TOKEN_INVALID, "登录已过期，请重新登录");
-        }
-
-        return new LoginUser(
-                Long.valueOf(String.valueOf(payload.get("sub"))),
-                String.valueOf(payload.getOrDefault("username", "")),
-                String.valueOf(payload.getOrDefault("role", "USER")));
     }
 
-    private String sign(String data) {
-        try {
-            Mac mac = Mac.getInstance(HMAC_SHA256);
-            mac.init(new SecretKeySpec(secretKey, HMAC_SHA256));
-            return Base64.getUrlEncoder().withoutPadding()
-                    .encodeToString(mac.doFinal(data.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            throw new IllegalStateException("JWT 签名失败", e);
-        }
+    public long accessTtlSeconds() {
+        return properties.accessTtlSeconds();
+    }
+
+    public long refreshTtlSeconds() {
+        return properties.refreshTtlSeconds();
     }
 }
+

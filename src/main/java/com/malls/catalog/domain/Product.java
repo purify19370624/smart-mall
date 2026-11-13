@@ -3,6 +3,7 @@ package com.malls.catalog.domain;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.malls.common.persistence.BaseEntity;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -12,6 +13,7 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
 @TableName("pms_product")       // 索引写在建表 SQL：idx_product_category_status / idx_product_brand
 public class Product extends BaseEntity {
 

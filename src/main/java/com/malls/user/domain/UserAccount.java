@@ -17,8 +17,11 @@ public class UserAccount extends BaseEntity {
 
     private String username;
 
+    private String nickname;
     /** BCrypt 加盐哈希，禁止明文 */
     private String password;
+
+    private String avatar;
 
     private String phone;
 
@@ -42,5 +45,16 @@ public class UserAccount extends BaseEntity {
 
     public boolean enabled() {
         return status == AccountStatus.ENABLED;
+    }
+
+    /** 是否平台管理员，后台接口鉴权时使用 */
+    public boolean isAdmin() {
+        return role == Role.ADMIN;
+    }
+
+    /** 记录一次成功登录，只更新登录痕迹，不触碰密码等敏感字段 */
+    public void recordLogin(String ip) {
+        this.lastLoginTime = LocalDateTime.now();
+        this.lastLoginIp = ip;
     }
 }

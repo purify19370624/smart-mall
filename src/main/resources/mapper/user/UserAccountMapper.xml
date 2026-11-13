@@ -4,6 +4,10 @@
 <!-- 用户账号持久层。 -->
 <mapper namespace="com.malls.user.mapper.UserAccountMapper">
 
+
+<!--登出未完成-->
+
+
     <!--
       该 Mapper 目前所有查询/写入都走 BaseMapper 内置方法（selectById / selectPage /
       insert / updateById ...），没有自定义 SQL，所以这里只有 namespace。
@@ -12,4 +16,10 @@
       注解里的 SQL 无法复用 <sql> 片段、无法做 <if> 动态拼接，也躲不过编译期检查。
     -->
 
+    <update id="bumpTokenVersion">
+        update  user_account
+        set token_version = token_version+1
+        where  id ={id}
+          and deleted = 0
+    </update>
 </mapper>

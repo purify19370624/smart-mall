@@ -66,6 +66,27 @@ public final class ProductQueries {
     }
 
     /**
+     * 后台检索：<b>不加上架过滤</b>，运营能看到下架商品。
+     *
+     * <p>唯一的差别就是 {@code onlyOnSale = false}，其余条件（关键词、分类、品牌、价格、
+     * 排序、分页）全部复用前台那份拼装逻辑——两套条件各写一遍，迟早会出现
+     * "前台搜得到、后台搜不到"的诡异问题。
+     *
+     * @param query       检索条件
+     * @param categoryIds 分类 ID 集合，传一级分类时应含所有子孙分类
+     * @param status      可选的状态精确过滤；为 null 表示上下架都要
+     */
+    public static LambdaQueryWrapper<Product> ofAdminQuery(ProductQuery query,
+                                                           List<Long> categoryIds,
+                                                           ProductStatus status) {
+        LambdaQueryWrapper<Product> wrapper = ofQuery(query, categoryIds, false);
+        if (status != null) {
+            wrapper.eq(Product::getStatus, status);
+        }
+        return wrapper;
+    }
+
+    /**
      * 排序白名单。
      *
      * <p>直接把前端传的 {@code sort} 拼进 {@code order by} 是经典漏洞——攻击者可以按任意列

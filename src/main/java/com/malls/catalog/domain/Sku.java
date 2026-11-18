@@ -28,7 +28,18 @@ public class Sku extends BaseEntity {
 
     private boolean enabled = true;
 
+    /** 是否还有库存，加购与详情页按钮状态判断用 */
     public boolean hasStock() {
         return enabled && !isRemoved() && stock > 0;
+    }
+
+    /** 库存是否够指定数量，加入购物车时先做一次快速校验，真正的闸门在扣减 SQL */
+    public boolean hasStock(int num) {
+        return num > 0 && stock >= num;
+    }
+
+    /** 是否可售：启用、未删除且库存大于零 */
+    public boolean available() {
+        return enabled && hasStock() && !isRemoved();
     }
 }

@@ -16,10 +16,16 @@
       注解里的 SQL 无法复用 <sql> 片段、无法做 <if> 动态拼接，也躲不过编译期检查。
     -->
 
+    <!--
+      登出 / 改密：令牌版本号自增，旧令牌立即失效（JwtAuthFilter 会比对 tv 与库里的值）。
+
+      注意 #{id} 的 # 不能少：写成 {id} 会生成 "id ={id}" 这种非法 SQL，
+      被 BlockAttackInnerInterceptor 解析时直接抛 ParseException（登出 500 的元凶）。
+    -->
     <update id="bumpTokenVersion">
-        update  user_account
-        set token_version = token_version+1
-        where  id ={id}
+        update user_account
+        set token_version = token_version + 1
+        where id = #{id}
           and deleted = 0
     </update>
 </mapper>

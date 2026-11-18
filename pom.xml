@@ -48,6 +48,8 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- 只要 BCrypt，不引入完整 Spring Security 过滤器链（注意：不要重复声明，
+             Maven 会对同名依赖直接报 "must be unique" 并拒绝构建） -->
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
@@ -92,12 +94,15 @@
             <artifactId>mybatis-plus-jsqlparser</artifactId>
             <version>3.5.9</version>
         </dependency>
-        <!-- 只要 BCrypt，不引入完整 Spring Security 过滤器链 -->
+        <!-- 本地缓存（CacheConfig）：Caffeine 做容量上限与过期，cache starter 提供 @Cacheable -->
         <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-crypto</artifactId>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
 <!--        &lt;!&ndash; Spring AI：统一大模型调用 / Embedding / Tool Calling &ndash;&gt;-->
 <!--        <dependency>-->
 <!--            <groupId>org.springframework.ai</groupId>-->

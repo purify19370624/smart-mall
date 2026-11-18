@@ -40,4 +40,18 @@
            and enabled = 1
     </update>
 
+    <!--
+      条件更新回补库存：取消订单、退款时调用。
+
+      回补不涉及库存上限，所以只校验「规格还在且仍启用」；同样显式写出 deleted / enabled，
+      因为自定义 SQL 绕过了 MyBatis-Plus 的逻辑删除拦截。返回 0 行即规格已删或已停用。
+    -->
+    <update id="restoreStock">
+        update pms_sku
+           set stock = stock + #{num}
+         where id = #{skuId}
+           and deleted = 0
+           and enabled = 1
+    </update>
+
 </mapper>

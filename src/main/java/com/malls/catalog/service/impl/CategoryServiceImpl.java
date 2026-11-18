@@ -10,12 +10,14 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+
 @Service                     // 注册为业务组件
 @RequiredArgsConstructor     // 构造器注入
 public class CategoryServiceImpl implements CategoryService {
     private  static  final  int MAX_DEPTH = 3;
 
     private  final CategoryMapper categoryMapper;
+
     @Override
     public List<CategoryNode> tree() {
         List<Category> categories = categoryMapper.selectList(Wrappers.<Category>lambdaQuery()
@@ -30,6 +32,34 @@ public class CategoryServiceImpl implements CategoryService {
 
 
         return firstLabel;
+    }
+
+    /**
+     * 取某分类及其所有子孙分类的 ID。
+     *
+     * <p>一次把整张分类表读进内存再递归，而不是每层发一次 SQL：
+     * 分类是"读多写极少"的小表，一条查询换掉 N 次往返更划算。
+     * 若数据量变大，改成递归 CTE 或把树缓存起来，接口不用变。
+     */
+    @Override
+    public List<Long> subtreeIds(Long categoryId) {
+        if (categoryId == null) {
+            return List.of();
+        }
+        List<Category> all = categoryMapper.selectList(null);
+        List<Long> result = new ArrayList<>();
+        result.add(categoryId);
+        collectChildren(categoryId, all, result);
+        return result;
+    }
+
+    private void collectChildren(Long parentId, List<Category> all, List<Long> result) {
+        for (Category category : all) {
+            if (parentId.equals(category.getParentId())) {
+                result.add(category.getId());
+                collectChildren(category.getId(), all, result);
+            }
+        }
     }
 
     private CategoryNode buildNode(Category category, List<Category> categories, int level) {
